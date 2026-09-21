@@ -1,0 +1,32 @@
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: plantops
+      POSTGRES_USER: plantops
+      POSTGRES_PASSWORD: plantops
+    ports:
+      - "5432:5432"
+    volumes:
+      - plantops_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U plantops -d plantops"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build: .
+    environment:
+      DATABASE_URL: postgresql+psycopg://plantops:plantops@db:5432/plantops
+      CORS_ORIGINS: http://localhost:5173
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  plantops_postgres:

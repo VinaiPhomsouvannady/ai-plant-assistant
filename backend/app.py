@@ -14,7 +14,7 @@ from backend.database.store import DocumentStore
 
 load_dotenv(override=True)
 
-store = DocumentStore()
+store = DocumentStore(os.getenv("DATABASE_URL"))
 
 
 @asynccontextmanager

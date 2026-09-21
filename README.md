@@ -18,4 +18,14 @@ Copy `.env.example` to `.env` and add a valid OpenAI API key for LLM responses. 
 .\\.venv\\Scripts\\python.exe -m pytest
 ```
 
-The current document store is in memory. PostgreSQL and vector embeddings can be added behind `backend/database` and `backend/rag` without changing the API contracts.
+The document store uses PostgreSQL when `DATABASE_URL` is configured and falls back to in-memory storage for lightweight local tests. The vector column is prepared for the embedding-ingestion step.
+
+## PostgreSQL
+
+Start PostgreSQL with pgvector and the API together:
+
+```powershell
+docker compose up --build
+```
+
+When `DATABASE_URL` is set, the API creates the `documents` and `document_chunks` tables and persists ingested procedures across restarts. The `embedding` column is ready for the next embedding-ingestion step.
