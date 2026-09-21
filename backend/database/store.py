@@ -19,7 +19,7 @@ class DocumentStore:
             initialize_schema(self.engine)
             self._load_from_database()
 
-    def add(self, payload: DocumentCreate) -> Document:
+    def add(self, payload: DocumentCreate, embeddings: list[list[float]] | None = None) -> Document:
         document_id = str(uuid4())
         document = Document(
             id=document_id,
@@ -42,11 +42,28 @@ class DocumentStore:
                     source=payload.source,
                 )
                 row.chunks = [
-                    DocumentChunkRow(document_id=document_id, chunk_id=str(index), text=text)
+                    DocumentChunkRow(
+                        document_id=document_id,
+                        chunk_id=str(index),
+                        text=text,
+                        embedding=embeddings[index] if embeddings else None,
+                    )
                     for index, text in enumerate(chunk_text(payload.content))
                 ]
                 session.add(row)
         return document
+
+    def set_embeddings(self, document_id: str, embeddings: list[list[float]]) -> None:
+        if not self.SessionLocal:
+            return
+        with self.SessionLocal.begin() as session:
+            rows = session.scalars(
+                select(DocumentChunkRow)
+                .where(DocumentChunkRow.document_id == document_id)
+                .order_by(DocumentChunkRow.chunk_id)
+            ).all()
+            for row, embedding in zip(rows, embeddings):
+                row.embedding = embedding
 
     def all(self) -> list[Document]:
         return list(self.documents.values())

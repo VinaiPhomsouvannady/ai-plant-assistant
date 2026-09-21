@@ -28,4 +28,4 @@ Start PostgreSQL with pgvector and the API together:
 docker compose up --build
 ```
 
-When `DATABASE_URL` is set, the API creates the `documents` and `document_chunks` tables and persists ingested procedures across restarts. The `embedding` column is ready for the next embedding-ingestion step.
+When `DATABASE_URL` is set, the API creates the `documents` and `document_chunks` tables and persists ingested procedures across restarts. New document chunks are embedded with `text-embedding-3-small` and searched with pgvector cosine similarity. If embeddings are unavailable, keyword retrieval remains available.

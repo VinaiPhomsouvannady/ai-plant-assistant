@@ -9,8 +9,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
 from backend.api.routes import build_router
+from backend.ai.embeddings import embed_texts
 from backend.database.seed import SEED_DOCUMENTS
 from backend.database.store import DocumentStore
+from backend.rag.chunker import chunk_text
 
 load_dotenv(override=True)
 
@@ -21,7 +23,8 @@ store = DocumentStore(os.getenv("DATABASE_URL"))
 async def lifespan(_: FastAPI):
     if not store.documents:
         for seed in SEED_DOCUMENTS:
-            store.add(seed)
+            embeddings = await embed_texts(chunk_text(seed.content))
+            store.add(seed, embeddings or None)
     yield
 
 

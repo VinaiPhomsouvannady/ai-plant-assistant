@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 
+from backend.ai.embeddings import embed_texts
 from backend.ai.service import fallback_answer, generate_answer
 from backend.database.store import DocumentStore
 from backend.models import (
@@ -10,7 +11,8 @@ from backend.models import (
     TroubleshootRequest,
     TroubleshootResponse,
 )
-from backend.rag.retriever import retrieve
+from backend.rag.chunker import chunk_text
+from backend.rag.retriever import retrieve, vector_retrieve
 
 
 def build_router(store: DocumentStore) -> APIRouter:
@@ -21,16 +23,22 @@ def build_router(store: DocumentStore) -> APIRouter:
         return store.all()
 
     @router.post("/documents", response_model=Document, status_code=201)
-    def ingest_document(payload: DocumentCreate) -> Document:
-        return store.add(payload)
+    async def ingest_document(payload: DocumentCreate) -> Document:
+        embeddings = await embed_texts(chunk_text(payload.content))
+        return store.add(payload, embeddings or None)
 
     @router.post("/search", response_model=list[Source])
-    def search_documents(payload: SearchRequest) -> list[Source]:
-        return retrieve(store, payload.query, payload.equipment, payload.limit)
+    async def search_documents(payload: SearchRequest) -> list[Source]:
+        embeddings = await embed_texts([payload.query])
+        sources = vector_retrieve(store, embeddings[0], payload.equipment, payload.limit) if embeddings else []
+        return sources or retrieve(store, payload.query, payload.equipment, payload.limit)
 
     @router.post("/troubleshoot", response_model=TroubleshootResponse)
     async def troubleshoot(payload: TroubleshootRequest) -> TroubleshootResponse:
-        sources = retrieve(store, f"{payload.equipment} {payload.problem}", payload.equipment, payload.limit)
+        query = f"{payload.equipment} {payload.problem}"
+        embeddings = await embed_texts([query])
+        sources = vector_retrieve(store, embeddings[0], payload.equipment, payload.limit) if embeddings else []
+        sources = sources or retrieve(store, query, payload.equipment, payload.limit)
         answer, generated_by = await generate_answer(payload.equipment, payload.problem, sources)
         _, severity, next_checks = fallback_answer(payload.equipment, payload.problem, sources)
         return TroubleshootResponse(
