@@ -15,8 +15,5 @@ def build_database(database_url: str):
 
 
 def initialize_schema(engine) -> None:
-    from backend.database.tables import DocumentRow, DocumentChunkRow
-
     with engine.begin() as connection:
         connection.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
-    Base.metadata.create_all(engine)
