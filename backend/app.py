@@ -46,4 +46,9 @@ def frontend() -> FileResponse:
 
 @app.get("/health")
 def health() -> dict[str, Any]:
-    return {"status": "ok", "documents": len(store.documents), "chunks": len(store.chunks)}
+    return {
+        "status": "ok",
+        "documents": len(store.documents),
+        "chunks": len(store.chunks),
+        "alarms": len(store.alarms),
+    }

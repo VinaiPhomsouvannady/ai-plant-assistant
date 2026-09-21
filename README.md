@@ -29,3 +29,17 @@ docker compose up --build
 ```
 
 When `DATABASE_URL` is set, the API creates the `documents` and `document_chunks` tables and persists ingested procedures across restarts. New document chunks are embedded with `text-embedding-3-small` and searched with pgvector cosine similarity. If embeddings are unavailable, keyword retrieval remains available.
+
+## Historical alarms
+
+Ingest one event:
+
+```powershell
+Invoke-RestMethod -Uri http://127.0.0.1:8000/api/alarms -Method Post -ContentType 'application/json' -Body '{"equipment":"Compressor K-301","alarm_code":"VIB_HIGH","message":"High vibration","occurred_at":"2026-09-21T12:00:00Z"}'
+```
+
+Inspect recurring equipment issues:
+
+```text
+GET /api/alarms/recurring
+```

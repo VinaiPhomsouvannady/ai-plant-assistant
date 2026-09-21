@@ -1,7 +1,7 @@
 import logging
 import os
 
-from backend.models import Source
+from backend.models import Alarm, Source
 
 logger = logging.getLogger(__name__)
 
@@ -26,19 +26,32 @@ def fallback_answer(equipment: str, problem: str, sources: list[Source]) -> tupl
     return answer, severity, checks
 
 
-async def generate_answer(equipment: str, problem: str, sources: list[Source]) -> tuple[str, str]:
+async def generate_answer(
+    equipment: str,
+    problem: str,
+    sources: list[Source],
+    alarms: list[Alarm] | None = None,
+) -> tuple[str, str]:
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key or not sources:
         return fallback_answer(equipment, problem, sources)[0], "retrieval-fallback"
     try:
         from openai import AsyncOpenAI
 
-        context = "\n\n".join(f"[{source.title}] {source.excerpt}" for source in sources)
+        procedure_context = "\n\n".join(f"[{source.title}] {source.excerpt}" for source in sources)
+        alarm_context = "\n".join(
+            f"- {alarm.occurred_at.isoformat()} | {alarm.alarm_code} | {alarm.message}"
+            for alarm in (alarms or [])
+        ) or "No recent matching alarm history is available."
         client = AsyncOpenAI(api_key=api_key)
         response = await client.responses.create(
             model=os.getenv("OPENAI_MODEL", "gpt-4.1-mini"),
             instructions="You are a cautious plant operations assistant. Use only the provided context. Never invent a procedure. Mention source titles in the answer and recommend escalation for unsafe conditions.",
-            input=f"Equipment: {equipment}\nProblem: {problem}\nContext:\n{context}",
+            input=(
+                f"Equipment: {equipment}\nProblem: {problem}\n"
+                f"Procedure context:\n{procedure_context}\n"
+                f"Recent alarm history:\n{alarm_context}"
+            ),
         )
         return response.output_text, "openai"
     except Exception as error:

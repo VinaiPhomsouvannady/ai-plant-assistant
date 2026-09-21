@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import DateTime, ForeignKey, String, Text
+from sqlalchemy import DateTime, Float, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.database.postgres import Base
@@ -32,3 +32,15 @@ class DocumentChunkRow(Base):
     text: Mapped[str] = mapped_column(Text, nullable=False)
     embedding: Mapped[list[float] | None] = mapped_column(Vector(1536))
     document: Mapped[DocumentRow] = relationship(back_populates="chunks")
+
+
+class AlarmRow(Base):
+    __tablename__ = "equipment_alarms"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    equipment: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+    alarm_code: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    message: Mapped[str] = mapped_column(String(500), nullable=False)
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+    value: Mapped[float | None] = mapped_column(Float)
+    unit: Mapped[str | None] = mapped_column(String(30))
