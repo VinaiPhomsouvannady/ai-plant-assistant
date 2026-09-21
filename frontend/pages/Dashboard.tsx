@@ -1,19 +1,183 @@
 import { useEffect, useState } from 'react';
 import QuestionForm from '../components/QuestionForm';
-import { recurringIssues, RecurringIssue, TroubleshootResponse } from '../src/api';
+import {
+  DocumentRecord,
+  listDocuments,
+  recurringIssues,
+  RecurringIssue,
+  searchDocuments,
+  Source,
+  TroubleshootResponse,
+} from '../src/api';
+
+const severityStyles: Record<string, string> = {
+  low: 'severity-low',
+  medium: 'severity-medium',
+  high: 'severity-high',
+};
+
+const statusCards = [
+  { label: 'Units online', value: '23 / 26', tone: 'good' },
+  { label: 'Active alarms', value: '4', tone: 'warn' },
+  { label: 'Avg response', value: '12 min', tone: 'neutral' },
+];
 
 export default function Dashboard() {
   const [result, setResult] = useState<TroubleshootResponse | null>(null);
   const [issues, setIssues] = useState<RecurringIssue[]>([]);
+  const [documents, setDocuments] = useState<DocumentRecord[]>([]);
+  const [searchQuery, setSearchQuery] = useState('low discharge pressure');
+  const [searchResults, setSearchResults] = useState<Source[]>([]);
 
   useEffect(() => {
     recurringIssues().then(setIssues).catch(() => setIssues([]));
+    listDocuments().then(setDocuments).catch(() => setDocuments([]));
   }, []);
 
-  return <main>
-    <h1>PlantOps AI</h1>
-    <QuestionForm onResult={setResult} />
-    {result && <section aria-live="polite"><h2>{result.severity} priority</h2><p>{result.answer}</p><h3>Next checks</h3><ul>{result.next_checks.map((check) => <li key={check}>{check}</li>)}</ul></section>}
-    <section><h2>Recurring issues</h2>{issues.length === 0 ? <p>No historical issues recorded.</p> : <ul>{issues.map((issue) => <li key={`${issue.equipment}-${issue.alarm_code}`}>{issue.equipment}: {issue.alarm_code} ({issue.occurrences})</li>)}</ul>}</section>
-  </main>;
+  async function handleKnowledgeSearch() {
+    if (!searchQuery.trim()) {
+      return;
+    }
+
+    try {
+      const results = await searchDocuments(searchQuery, 'Centrifugal pump', 3);
+      setSearchResults(results);
+    } catch {
+      setSearchResults([]);
+    }
+  }
+
+  return (
+    <main className="dashboard-shell">
+      <header className="topbar">
+        <div>
+          <p className="eyebrow">Plant Operations Console</p>
+          <h1>PlantOps AI</h1>
+        </div>
+        <div className="status-pill">Live monitoring</div>
+      </header>
+
+      <section className="status-row">
+        {statusCards.map((card) => (
+          <div key={card.label} className={`status-card ${card.tone}`}>
+            <span>{card.label}</span>
+            <strong>{card.value}</strong>
+          </div>
+        ))}
+      </section>
+
+      <section className="hero-grid">
+        <div className="panel panel-primary">
+          <div className="panel-header">
+            <span className="dot" />
+            <h2>Equipment triage</h2>
+          </div>
+          <QuestionForm onResult={setResult} />
+        </div>
+
+        <aside className="panel panel-secondary">
+          <h3>Recurring issues</h3>
+          {issues.length === 0 ? (
+            <p className="empty-state">No historical issues recorded yet.</p>
+          ) : (
+            <ul className="issue-list">
+              {issues.map((issue) => (
+                <li key={`${issue.equipment}-${issue.alarm_code}`}>
+                  <div className="issue-title-row">
+                    <strong>{issue.equipment}</strong>
+                    <span>{issue.occurrences}x</span>
+                  </div>
+                  <p>{issue.alarm_code}</p>
+                  <small>{issue.latest_message}</small>
+                </li>
+              ))}
+            </ul>
+          )}
+        </aside>
+      </section>
+
+      <section className="insight-grid">
+        <div className="panel panel-secondary">
+          <h3>Process trend</h3>
+          <div className="trend-chart" aria-label="Process trend chart">
+            <span className="trend-line" />
+          </div>
+          <div className="trend-labels">
+            <span>10:00</span>
+            <span>12:00</span>
+            <span>14:00</span>
+          </div>
+        </div>
+
+        <div className="panel panel-secondary knowledge-panel">
+          <h3>Knowledge base</h3>
+          <div className="search-row">
+            <input
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Search plant procedure docs"
+            />
+            <button type="button" onClick={handleKnowledgeSearch}>Search</button>
+          </div>
+
+          <div className="knowledge-results">
+            {searchResults.length === 0 ? (
+              <p className="empty-state">{documents.length ? 'Try a search to find relevant procedures.' : 'No documents loaded yet.'}</p>
+            ) : (
+              searchResults.map((item) => (
+                <div key={item.id} className="knowledge-item">
+                  <strong>{item.title}</strong>
+                  <p>{item.excerpt}</p>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </section>
+
+      {result && (
+        <section className="panel result-panel" aria-live="polite">
+          <div className="result-header">
+            <div>
+              <p className="eyebrow">AI recommendation</p>
+              <h2>Recommended response</h2>
+            </div>
+            <span className={`severity-badge ${severityStyles[result.severity] ?? 'severity-low'}`}>
+              {result.severity} priority
+            </span>
+          </div>
+
+          <p className="answer-copy">{result.answer}</p>
+
+          <div className="result-grid">
+            <div>
+              <h3>Next checks</h3>
+              <ul className="check-list">
+                {result.next_checks.map((check) => (
+                  <li key={check}>{check}</li>
+                ))}
+              </ul>
+            </div>
+
+            <div>
+              <h3>Source references</h3>
+              <ul className="source-list">
+                {result.sources.map((source) => (
+                  <li key={source.id}>
+                    <strong>{source.title}</strong>
+                    <span>score {source.score.toFixed(2)}</span>
+                    <p>{source.excerpt}</p>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+
+          <div className="meta-row">
+            <span>Generated by: {result.generated_by}</span>
+          </div>
+        </section>
+      )}
+    </main>
+  );
 }
