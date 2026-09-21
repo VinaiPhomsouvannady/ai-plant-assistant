@@ -1,3 +1,4 @@
+import logging
 from collections import defaultdict
 from uuid import uuid4
 
@@ -8,6 +9,8 @@ from backend.rag.chunker import chunk_text
 from backend.database.postgres import build_database, initialize_schema
 from backend.database.tables import AlarmRow, DocumentChunkRow, DocumentRow
 
+logger = logging.getLogger(__name__)
+
 
 class DocumentStore:
     def __init__(self, database_url: str | None = None) -> None:
@@ -17,9 +20,14 @@ class DocumentStore:
         self.engine = None
         self.SessionLocal = None
         if database_url:
-            self.engine, self.SessionLocal = build_database(database_url)
-            initialize_schema(self.engine)
-            self._load_from_database()
+            try:
+                self.engine, self.SessionLocal = build_database(database_url)
+                initialize_schema(self.engine)
+                self._load_from_database()
+            except Exception as exc:  # pragma: no cover - runtime protection against missing DB
+                logger.warning("Database unavailable at %s; falling back to in-memory store. Error: %s", database_url, exc)
+                self.engine = None
+                self.SessionLocal = None
 
     def add_alarm(self, payload: AlarmCreate) -> Alarm:
         alarm = Alarm(id=str(uuid4()), **payload.model_dump())

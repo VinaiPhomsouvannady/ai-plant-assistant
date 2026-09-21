@@ -14,7 +14,9 @@ from backend.database.seed import SEED_DOCUMENTS
 from backend.database.store import DocumentStore
 from backend.rag.chunker import chunk_text
 
-load_dotenv(override=True)
+# Keep runtime environment variables from the host/container as the source of truth.
+# This prevents local .env files from overriding Docker Compose values such as DATABASE_URL.
+load_dotenv(override=False)
 
 store = DocumentStore(os.getenv("DATABASE_URL"))
 

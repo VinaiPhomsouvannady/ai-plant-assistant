@@ -1,8 +1,25 @@
-from fastapi.testclient import TestClient
+import importlib
+import os
+import sys
 from datetime import datetime, timezone
+from pathlib import Path
+
+from fastapi.testclient import TestClient
 
 from backend.app import app
-import os
+
+
+def test_runtime_env_keeps_container_database_url(monkeypatch, tmp_path) -> None:
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / ".env").write_text("DATABASE_URL=postgresql+psycopg://plantops:plantops@localhost:5432/plantops\n")
+    monkeypatch.setenv("DATABASE_URL", "postgresql+psycopg://plantops:plantops@db:5432/plantops")
+
+    sys.modules.pop("backend.app", None)
+    app_module = importlib.import_module("backend.app")
+
+    assert os.environ["DATABASE_URL"] == "postgresql+psycopg://plantops:plantops@db:5432/plantops"
+    assert app_module.store.engine is None
+    assert app_module.store.SessionLocal is None
 
 
 def test_health_and_seeded_documents() -> None:

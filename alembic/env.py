@@ -2,16 +2,19 @@ from logging.config import fileConfig
 import os
 
 from alembic import context
-from sqlalchemy import engine_from_config, pool
 from dotenv import load_dotenv
+from sqlalchemy import engine_from_config, pool
 
 from backend.database.postgres import Base
 from backend.database import tables
 
-load_dotenv(override=True)
+# Keep the active runtime environment as the source of truth.
+# This avoids a local .env file overriding the Compose/database URL during migration runs.
+load_dotenv(override=False)
 config = context.config
-if os.getenv("DATABASE_URL"):
-    config.set_main_option("sqlalchemy.url", os.environ["DATABASE_URL"])
+configured_url = os.getenv("DATABASE_URL") or config.get_main_option("sqlalchemy.url")
+if configured_url:
+    config.set_main_option("sqlalchemy.url", configured_url)
 if config.config_file_name:
     fileConfig(config.config_file_name)
 target_metadata = Base.metadata
