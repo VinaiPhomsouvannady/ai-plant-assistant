@@ -1,7 +1,8 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
 from backend.ai.embeddings import embed_texts
 from backend.ai.service import fallback_answer, generate_answer
+from backend.api.auth import require_write_token
 from backend.database.store import DocumentStore
 from backend.models import (
     Alarm,
@@ -21,11 +22,11 @@ from backend.rag.retriever import retrieve, vector_retrieve
 def build_router(store: DocumentStore) -> APIRouter:
     router = APIRouter(prefix="/api")
 
-    @router.post("/alarms", response_model=Alarm, status_code=201)
+    @router.post("/alarms", response_model=Alarm, status_code=201, dependencies=[Depends(require_write_token)])
     def ingest_alarm(payload: AlarmCreate) -> Alarm:
         return store.add_alarm(payload)
 
-    @router.post("/alarms/bulk", response_model=list[Alarm], status_code=201)
+    @router.post("/alarms/bulk", response_model=list[Alarm], status_code=201, dependencies=[Depends(require_write_token)])
     def ingest_alarms(payload: list[AlarmCreate]) -> list[Alarm]:
         return [store.add_alarm(alarm) for alarm in payload]
 
@@ -37,7 +38,7 @@ def build_router(store: DocumentStore) -> APIRouter:
     def list_documents() -> list[Document]:
         return store.all()
 
-    @router.post("/documents", response_model=Document, status_code=201)
+    @router.post("/documents", response_model=Document, status_code=201, dependencies=[Depends(require_write_token)])
     async def ingest_document(payload: DocumentCreate) -> Document:
         embeddings = await embed_texts(chunk_text(payload.content))
         return store.add(payload, embeddings or None)

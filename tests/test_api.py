@@ -2,6 +2,7 @@ from fastapi.testclient import TestClient
 from datetime import datetime, timezone
 
 from backend.app import app
+import os
 
 
 def test_health_and_seeded_documents() -> None:
@@ -37,3 +38,15 @@ def test_alarm_history_identifies_recurring_issues() -> None:
     assert response.status_code == 201
     assert recurring[0]["alarm_code"] == "VIB_HIGH"
     assert recurring[0]["occurrences"] >= 2
+
+
+def test_write_auth_is_optional_for_local_development() -> None:
+    os.environ.pop("API_ACCESS_TOKEN", None)
+    with TestClient(app) as client:
+        response = client.post("/api/documents", json={
+            "title": "Local test procedure",
+            "equipment": "Test valve",
+            "content": "Use this procedure only for local API authentication testing.",
+        })
+
+    assert response.status_code == 201

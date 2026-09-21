@@ -43,3 +43,13 @@ Inspect recurring equipment issues:
 ```text
 GET /api/alarms/recurring
 ```
+
+## API write protection
+
+Set `API_ACCESS_TOKEN` in `.env` to protect document and alarm ingestion endpoints. Send the token as a bearer token:
+
+```text
+Authorization: Bearer <API_ACCESS_TOKEN>
+```
+
+When the setting is empty, write endpoints remain open for local development.
