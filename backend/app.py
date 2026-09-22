@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from backend.api.routes import build_router
 from backend.ai.embeddings import embed_texts
@@ -40,9 +41,16 @@ app.add_middleware(
 )
 app.include_router(build_router(store))
 
+frontend_dist = Path(__file__).parent.parent / "frontend" / "dist"
+if (frontend_dist / "assets").exists():
+    app.mount("/assets", StaticFiles(directory=str(frontend_dist / "assets")), name="assets")
+
 
 @app.get("/", include_in_schema=False)
 def frontend() -> FileResponse:
+    built_index = frontend_dist / "vite.html"
+    if built_index.exists():
+        return FileResponse(built_index)
     return FileResponse(Path(__file__).parent.parent / "frontend" / "index.html")
 
 
