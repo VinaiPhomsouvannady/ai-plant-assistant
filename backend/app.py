@@ -6,7 +6,7 @@ from typing import Any
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 from backend.api.routes import build_router
@@ -51,7 +51,71 @@ def frontend() -> FileResponse:
     built_index = frontend_dist / "vite.html"
     if built_index.exists():
         return FileResponse(built_index)
-    return FileResponse(Path(__file__).parent.parent / "frontend" / "index.html")
+    raise FileNotFoundError("Vite build not found. Run the frontend build before starting the app.")
+
+
+@app.get("/documents", include_in_schema=False)
+def documents_page() -> HTMLResponse:
+    return HTMLResponse(
+        """
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PlantOps AI Documents</title>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 0; background: #071a1c; color: #e7f5f1; }
+      main { max-width: 1100px; margin: 0 auto; padding: 32px 20px 60px; }
+      h1 { margin-bottom: 12px; }
+      .toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 24px; }
+      a.button { display: inline-block; padding: 10px 14px; border-radius: 10px; background: #8fe3a1; color: #071a1c; text-decoration: none; font-weight: 700; }
+      .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px; }
+      .card { background: rgba(13,31,35,0.95); border: 1px solid rgba(131,179,173,0.2); border-radius: 16px; padding: 18px; }
+      .meta { color: #b3d0cb; font-size: 12px; margin-bottom: 10px; }
+      .snippet { color: #dfece9; line-height: 1.6; max-height: 160px; overflow: hidden; }
+      .empty { color: #b3d0cb; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="toolbar">
+        <h1>PlantOps AI Documents</h1>
+        <a class="button" href="/">Back to dashboard</a>
+      </div>
+      <div id="documents" class="grid"></div>
+    </main>
+    <script>
+      fetch('/api/documents')
+        .then((response) => {
+          if (!response.ok) {
+            throw new Error('Failed to fetch documents');
+          }
+          return response.json();
+        })
+        .then((documents) => {
+          const container = document.getElementById('documents');
+          if (!documents.length) {
+            container.innerHTML = '<div class="card empty">No documents have been indexed yet.</div>';
+            return;
+          }
+          container.innerHTML = documents.map((doc) => `
+            <article class="card">
+              <div class="meta">${doc.equipment} · ${doc.source || 'Manual entry'} · ${doc.chunks} chunks</div>
+              <h2>${doc.title}</h2>
+              <p class="snippet">${doc.content.slice(0, 500)}${doc.content.length > 500 ? '...' : ''}</p>
+            </article>
+          `).join('');
+        })
+        .catch((error) => {
+          document.getElementById('documents').innerHTML = '<div class="card empty">Unable to load records from the document store.</div>';
+          console.error(error);
+        });
+    </script>
+  </body>
+</html>
+        """
+    )
 
 
 @app.get("/health")

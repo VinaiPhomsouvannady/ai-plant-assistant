@@ -57,6 +57,22 @@ button, input, textarea, select {
   box-shadow: 0 18px 45px rgba(0, 0, 0, 0.18);
 }
 
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.nav-link {
+  color: var(--primary);
+  text-decoration: none;
+  font-weight: 700;
+  border: 1px solid rgba(143, 227, 161, 0.25);
+  background: rgba(143, 227, 161, 0.08);
+  padding: 8px 12px;
+  border-radius: 999px;
+}
+
 .brand-lockup {
   display: flex;
   align-items: center;

@@ -1,3 +1,5 @@
+from io import BytesIO
+
 from fastapi import APIRouter, Depends, File, Form, UploadFile
 
 from backend.ai.embeddings import embed_texts
@@ -17,6 +19,26 @@ from backend.models import (
 )
 from backend.rag.chunker import chunk_text
 from backend.rag.retriever import retrieve, vector_retrieve
+
+
+def extract_uploaded_text(filename: str | None, raw_bytes: bytes) -> str:
+    name = (filename or "").lower()
+    if name.endswith(".pdf"):
+        try:
+            from pypdf import PdfReader
+
+            reader = PdfReader(BytesIO(raw_bytes))
+            pages = [page.extract_text() or "" for page in reader.pages]
+            text = "\n".join(page for page in pages if page).strip()
+            if text:
+                return text
+        except Exception as exc:  # pragma: no cover - surfaced to API caller as validation error
+            raise ValueError("Uploaded PDF could not be read or parsed.") from exc
+
+    try:
+        return raw_bytes.decode("utf-8").strip()
+    except UnicodeDecodeError:
+        return raw_bytes.decode("latin-1").strip()
 
 
 def build_router(store: DocumentStore) -> APIRouter:
@@ -51,7 +73,7 @@ def build_router(store: DocumentStore) -> APIRouter:
         source: str | None = Form(default=None),
     ) -> Document:
         content = await file.read()
-        text = content.decode("utf-8", errors="ignore").strip()
+        text = extract_uploaded_text(file.filename, content)
         if not text:
             raise ValueError("Uploaded file is empty or not readable as text.")
         payload = DocumentCreate(title=title, equipment=equipment, content=text, source=source)

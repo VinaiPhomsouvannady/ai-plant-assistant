@@ -1,6 +1,7 @@
 import importlib
 import os
 import sys
+import zlib
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -82,3 +83,38 @@ def test_document_upload_accepts_text_file() -> None:
     assert payload["title"] == "Uploaded pump procedure"
     assert payload["equipment"] == "Centrifugal pump"
     assert "suction pressure" in payload["content"].lower()
+
+
+def test_document_upload_parses_pdf_text() -> None:
+    content = b"BT /F1 18 Tf 50 100 Td (Verify suction pressure before startup.) Tj ET"
+    compressed = zlib.compress(content)
+    objects = [
+        b"1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n",
+        b"2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n",
+        b"3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>\nendobj\n",
+        b"4 0 obj\n<< /Length %d /Filter /FlateDecode >>\nstream\n" % len(compressed) + compressed + b"\nendstream\nendobj\n",
+        b"5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n",
+    ]
+    pdf_bytes = b"%PDF-1.4\n"
+    offsets = []
+    for obj in objects:
+        offsets.append(len(pdf_bytes))
+        pdf_bytes += obj
+    xref_start = len(pdf_bytes)
+    pdf_bytes += b"xref\n0 6\n0000000000 65535 f \n"
+    for offset in offsets:
+        pdf_bytes += f"{offset:010d} 00000 n \n".encode("ascii")
+    pdf_bytes += f"trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n{xref_start}\n%%EOF\n".encode("ascii")
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/documents/upload",
+            files={"file": ("pump_procedure.pdf", pdf_bytes, "application/pdf")},
+            data={"title": "Uploaded pump procedure pdf", "equipment": "Centrifugal pump", "source": "Uploaded PDF"},
+        )
+
+    assert response.status_code == 201, response.text
+    payload = response.json()
+    assert payload["title"] == "Uploaded pump procedure pdf"
+    assert "suction pressure" in payload["content"].lower()
+    assert "startup" in payload["content"].lower()

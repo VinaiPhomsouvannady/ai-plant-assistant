@@ -110,7 +110,10 @@ export default function Dashboard() {
             </h1>
           </div>
         </div>
-        <div className="status-pill">Live monitoring</div>
+        <div className="topbar-actions">
+          <a href="/documents" className="nav-link">Documents</a>
+          <div className="status-pill">Live monitoring</div>
+        </div>
       </header>
 
       <section className="status-row">
