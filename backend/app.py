@@ -69,12 +69,25 @@ def documents_page() -> HTMLResponse:
       main { max-width: 1100px; margin: 0 auto; padding: 32px 20px 60px; }
       h1 { margin-bottom: 12px; }
       .toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 24px; }
-      a.button { display: inline-block; padding: 10px 14px; border-radius: 10px; background: #8fe3a1; color: #071a1c; text-decoration: none; font-weight: 700; }
+      .button, button { display: inline-block; padding: 10px 14px; border: 0; border-radius: 10px; background: #8fe3a1; color: #071a1c; text-decoration: none; font-weight: 700; cursor: pointer; }
+      button.danger { background: #ff9b8f; }
+      button:disabled { cursor: wait; opacity: 0.65; }
+      .panel { background: rgba(13,31,35,0.95); border: 1px solid rgba(131,179,173,0.2); border-radius: 16px; padding: 18px; margin-bottom: 24px; }
+      .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+      label { display: grid; gap: 6px; color: #b3d0cb; font-size: 13px; }
+      input { box-sizing: border-box; width: 100%; padding: 10px; border: 1px solid rgba(131,179,173,0.35); border-radius: 8px; background: #10282b; color: #e7f5f1; }
+      textarea { box-sizing: border-box; width: 100%; min-height: 120px; padding: 10px; border: 1px solid rgba(131,179,173,0.35); border-radius: 8px; background: #10282b; color: #e7f5f1; resize: vertical; }
+      .full { grid-column: 1 / -1; }
+      .form-actions { display: flex; align-items: center; gap: 12px; margin-top: 14px; }
+      .status { color: #b3d0cb; min-height: 20px; }
       .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px; }
       .card { background: rgba(13,31,35,0.95); border: 1px solid rgba(131,179,173,0.2); border-radius: 16px; padding: 18px; }
+      .card-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+      .card-header h2 { margin-top: 0; }
       .meta { color: #b3d0cb; font-size: 12px; margin-bottom: 10px; }
       .snippet { color: #dfece9; line-height: 1.6; max-height: 160px; overflow: hidden; }
       .empty { color: #b3d0cb; }
+      @media (max-width: 640px) { .form-grid { grid-template-columns: 1fr; } .full { grid-column: auto; } }
     </style>
   </head>
   <body>
@@ -83,34 +96,82 @@ def documents_page() -> HTMLResponse:
         <h1>PlantOps AI Documents</h1>
         <a class="button" href="/">Back to dashboard</a>
       </div>
+      <section class="panel">
+        <h2>Add document</h2>
+        <form id="document-form">
+          <div class="form-grid">
+            <label>Title<input name="title" required maxlength="200" placeholder="Pump startup checklist" /></label>
+            <label>Equipment<input name="equipment" required maxlength="120" placeholder="Centrifugal pump" /></label>
+            <label>Source<input name="source" maxlength="500" placeholder="Operations manual" /></label>
+            <label>File (.txt, .md, .pdf)<input name="file" type="file" accept=".txt,.md,.pdf" /></label>
+            <label class="full">Content (or choose a file)<textarea name="content" minlength="20" placeholder="Paste the procedure or maintenance guidance here..."></textarea></label>
+          </div>
+          <div class="form-actions">
+            <button type="submit">Add document</button>
+            <span id="form-status" class="status" role="status"></span>
+          </div>
+        </form>
+      </section>
       <div id="documents" class="grid"></div>
     </main>
     <script>
-      fetch('/api/documents')
-        .then((response) => {
-          if (!response.ok) {
-            throw new Error('Failed to fetch documents');
-          }
-          return response.json();
-        })
-        .then((documents) => {
-          const container = document.getElementById('documents');
-          if (!documents.length) {
-            container.innerHTML = '<div class="card empty">No documents have been indexed yet.</div>';
-            return;
-          }
-          container.innerHTML = documents.map((doc) => `
-            <article class="card">
-              <div class="meta">${doc.equipment} · ${doc.source || 'Manual entry'} · ${doc.chunks} chunks</div>
-              <h2>${doc.title}</h2>
-              <p class="snippet">${doc.content.slice(0, 500)}${doc.content.length > 500 ? '...' : ''}</p>
-            </article>
-          `).join('');
-        })
-        .catch((error) => {
-          document.getElementById('documents').innerHTML = '<div class="card empty">Unable to load records from the document store.</div>';
-          console.error(error);
-        });
+      const container = document.getElementById('documents');
+      const status = document.getElementById('form-status');
+      const form = document.getElementById('document-form');
+
+      function escapeHtml(value) {
+        return String(value).replace(/[&<>'"]/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[character]));
+      }
+
+      async function loadDocuments() {
+        const response = await fetch('/api/documents', { credentials: 'include' });
+        if (!response.ok) throw new Error('Failed to load documents');
+        const documents = await response.json();
+        container.innerHTML = documents.length ? documents.map((doc) => `
+          <article class="card">
+            <div class="card-header">
+              <h2>${escapeHtml(doc.title)}</h2>
+              <button class="danger" type="button" data-delete="${escapeHtml(doc.id)}">Delete</button>
+            </div>
+            <div class="meta">${escapeHtml(doc.equipment)} · ${escapeHtml(doc.source || 'Manual entry')} · ${doc.chunks} chunks</div>
+            <p class="snippet">${escapeHtml(doc.content.slice(0, 500))}${doc.content.length > 500 ? '...' : ''}</p>
+          </article>
+        `).join('') : '<div class="card empty">No documents have been indexed yet.</div>';
+      }
+
+      form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        status.textContent = 'Adding document...';
+        const data = new FormData(form);
+        const file = data.get('file');
+        if (!file.name && String(data.get('content') || '').trim().length < 20) {
+          status.textContent = 'Add at least 20 characters of content or choose a file.';
+          return;
+        }
+        const request = file && file.name
+          ? fetch('/api/documents/upload', { method: 'POST', body: data, credentials: 'include' })
+          : fetch('/api/documents', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ title: data.get('title'), equipment: data.get('equipment'), source: data.get('source') || null, content: data.get('content') }) });
+        const response = await request;
+        if (!response.ok) {
+          status.textContent = response.status === 401 ? 'Sign in from the dashboard before adding documents.' : 'Unable to add document.';
+          return;
+        }
+        form.reset();
+        status.textContent = 'Document added.';
+        await loadDocuments();
+      });
+
+      container.addEventListener('click', async (event) => {
+        const button = event.target.closest('[data-delete]');
+        if (!button || !confirm('Delete this document?')) return;
+        button.disabled = true;
+        const response = await fetch('/api/documents/' + encodeURIComponent(button.dataset.delete), { method: 'DELETE', credentials: 'include' });
+        if (response.status === 401) alert('Sign in from the dashboard before deleting documents.');
+        else if (!response.ok) alert('Unable to delete document.');
+        await loadDocuments();
+      });
+
+      loadDocuments().catch(() => { container.innerHTML = '<div class="card empty">Unable to load records from the document store.</div>'; });
     </script>
   </body>
 </html>

@@ -151,3 +151,27 @@ def test_document_upload_parses_pdf_text() -> None:
     assert payload["title"] == "Uploaded pump procedure pdf"
     assert "suction pressure" in payload["content"].lower()
     assert "startup" in payload["content"].lower()
+
+
+def test_document_delete_requires_login_and_removes_document() -> None:
+    with TestClient(app) as client:
+        created = client.post("/api/documents", json={
+            "title": "Document to remove",
+            "equipment": "Test valve",
+            "content": "This document exists only to verify deletion behavior.",
+        })
+        assert created.status_code == 401
+
+        _login(client)
+        created = client.post("/api/documents", json={
+            "title": "Document to remove",
+            "equipment": "Test valve",
+            "content": "This document exists only to verify deletion behavior.",
+        })
+        document_id = created.json()["id"]
+        deleted = client.delete(f"/api/documents/{document_id}")
+        missing = client.delete(f"/api/documents/{document_id}")
+
+    assert created.status_code == 201
+    assert deleted.status_code == 204
+    assert missing.status_code == 404

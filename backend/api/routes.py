@@ -134,6 +134,12 @@ def build_router(store: DocumentStore) -> APIRouter:
     def list_documents() -> list[Document]:
         return store.all()
 
+    @router.delete("/documents/{document_id}", status_code=204, dependencies=[Depends(require_write_access)])
+    def delete_document(document_id: str) -> Response:
+        if not store.delete(document_id):
+            raise HTTPException(status_code=404, detail="Document not found.")
+        return Response(status_code=204)
+
     @router.post("/documents", response_model=Document, status_code=201, dependencies=[Depends(require_write_access)])
     async def ingest_document(payload: DocumentCreate) -> Document:
         embeddings = await embed_texts(chunk_text(payload.content))

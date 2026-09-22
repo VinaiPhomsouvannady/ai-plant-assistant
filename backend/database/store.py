@@ -110,6 +110,19 @@ class DocumentStore:
     def all(self) -> list[Document]:
         return list(self.documents.values())
 
+    def delete(self, document_id: str) -> bool:
+        if document_id not in self.documents:
+            return False
+
+        del self.documents[document_id]
+        self.chunks = [chunk for chunk in self.chunks if chunk["document_id"] != document_id]
+        if self.SessionLocal:
+            with self.SessionLocal.begin() as session:
+                row = session.get(DocumentRow, document_id)
+                if row is not None:
+                    session.delete(row)
+        return True
+
     def _load_from_database(self) -> None:
         with self.SessionLocal() as session:
             for row in session.scalars(select(AlarmRow).order_by(AlarmRow.occurred_at)).all():
