@@ -84,9 +84,18 @@ def documents_page() -> HTMLResponse:
       .card { background: rgba(13,31,35,0.95); border: 1px solid rgba(131,179,173,0.2); border-radius: 16px; padding: 18px; }
       .card-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
       .card-header h2 { margin-top: 0; }
+      .document-card { cursor: pointer; transition: border-color 0.2s, transform 0.2s; }
+      .document-card:hover, .document-card:focus-visible { border-color: #8fe3a1; transform: translateY(-2px); outline: none; }
       .meta { color: #b3d0cb; font-size: 12px; margin-bottom: 10px; }
       .snippet { color: #dfece9; line-height: 1.6; max-height: 160px; overflow: hidden; }
       .empty { color: #b3d0cb; }
+      dialog { width: min(760px, calc(100% - 32px)); max-height: 80vh; padding: 0; border: 1px solid rgba(143,227,161,0.45); border-radius: 16px; background: #0d1f23; color: #e7f5f1; }
+      dialog::backdrop { background: rgba(3, 12, 14, 0.78); }
+      .dialog-content { padding: 24px; }
+      .dialog-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+      .dialog-header h2 { margin: 0; }
+      .dialog-body { white-space: pre-wrap; line-height: 1.7; color: #dfece9; overflow-wrap: anywhere; }
+      .close-button { background: transparent; color: #e7f5f1; border: 1px solid rgba(131,179,173,0.35); }
       @media (max-width: 640px) { .form-grid { grid-template-columns: 1fr; } .full { grid-column: auto; } }
     </style>
   </head>
@@ -113,11 +122,29 @@ def documents_page() -> HTMLResponse:
         </form>
       </section>
       <div id="documents" class="grid"></div>
+      <dialog id="document-dialog">
+        <div class="dialog-content">
+          <div class="dialog-header">
+            <div>
+              <h2 id="dialog-title"></h2>
+              <p id="dialog-meta" class="meta"></p>
+            </div>
+            <button id="close-dialog" class="close-button" type="button">Close</button>
+          </div>
+          <div id="dialog-body" class="dialog-body"></div>
+        </div>
+      </dialog>
     </main>
     <script>
       const container = document.getElementById('documents');
       const status = document.getElementById('form-status');
       const form = document.getElementById('document-form');
+      const dialog = document.getElementById('document-dialog');
+      const dialogTitle = document.getElementById('dialog-title');
+      const dialogMeta = document.getElementById('dialog-meta');
+      const dialogBody = document.getElementById('dialog-body');
+      const closeDialog = document.getElementById('close-dialog');
+      let documentsById = {};
 
       function escapeHtml(value) {
         return String(value).replace(/[&<>'"]/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[character]));
@@ -127,8 +154,9 @@ def documents_page() -> HTMLResponse:
         const response = await fetch('/api/documents', { credentials: 'include' });
         if (!response.ok) throw new Error('Failed to load documents');
         const documents = await response.json();
+        documentsById = Object.fromEntries(documents.map((document) => [document.id, document]));
         container.innerHTML = documents.length ? documents.map((doc) => `
-          <article class="card">
+          <article class="card document-card" tabindex="0" role="button" data-view="${escapeHtml(doc.id)}" aria-label="View ${escapeHtml(doc.title)}">
             <div class="card-header">
               <h2>${escapeHtml(doc.title)}</h2>
               <button class="danger" type="button" data-delete="${escapeHtml(doc.id)}">Delete</button>
@@ -159,6 +187,33 @@ def documents_page() -> HTMLResponse:
         form.reset();
         status.textContent = 'Document added.';
         await loadDocuments();
+      });
+
+      function openDocument(documentId) {
+        const document = documentsById[documentId];
+        if (!document) return;
+        dialogTitle.textContent = document.title;
+        dialogMeta.textContent = `${document.equipment} · ${document.source || 'Manual entry'} · ${document.chunks} chunks`;
+        dialogBody.textContent = document.content;
+        dialog.showModal();
+      }
+
+      container.addEventListener('click', (event) => {
+        const card = event.target.closest('[data-view]');
+        if (card && !event.target.closest('[data-delete]')) openDocument(card.dataset.view);
+      });
+
+      container.addEventListener('keydown', (event) => {
+        const card = event.target.closest('[data-view]');
+        if (card && (event.key === 'Enter' || event.key === ' ')) {
+          event.preventDefault();
+          openDocument(card.dataset.view);
+        }
+      });
+
+      closeDialog.addEventListener('click', () => dialog.close());
+      dialog.addEventListener('click', (event) => {
+        if (event.target === dialog) dialog.close();
       });
 
       container.addEventListener('click', async (event) => {
