@@ -63,15 +63,18 @@ export function createDocument(payload: {
   equipment: string;
   content: string;
   source?: string | null;
-}): Promise<DocumentRecord> {
+}, token = ''): Promise<DocumentRecord> {
   return request<DocumentRecord>('/api/documents', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
     body: JSON.stringify(payload),
   });
 }
 
-export function uploadDocument(file: File, title: string, equipment: string, source?: string): Promise<DocumentRecord> {
+export function uploadDocument(file: File, title: string, equipment: string, source?: string, token = ''): Promise<DocumentRecord> {
   const formData = new FormData();
   formData.append('file', file);
   formData.append('title', title);
@@ -82,6 +85,7 @@ export function uploadDocument(file: File, title: string, equipment: string, sou
 
   return fetch('/api/documents/upload', {
     method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
     body: formData,
   }).then(async (response) => {
     if (!response.ok) {

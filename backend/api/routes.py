@@ -1,16 +1,19 @@
+import re
+import zlib
 from io import BytesIO
 
-from fastapi import APIRouter, Depends, File, Form, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 
 from backend.ai.embeddings import embed_texts
 from backend.ai.service import fallback_answer, generate_answer
-from backend.api.auth import require_write_token
+from backend.api.auth import authenticate_credentials, get_api_token, require_write_token
 from backend.database.store import DocumentStore
 from backend.models import (
     Alarm,
     AlarmCreate,
     Document,
     DocumentCreate,
+    LoginRequest,
     SearchRequest,
     Source,
     RecurringIssue,
@@ -19,6 +22,39 @@ from backend.models import (
 )
 from backend.rag.chunker import chunk_text
 from backend.rag.retriever import retrieve, vector_retrieve
+
+
+def _extract_pdf_strings(raw_bytes: bytes) -> str:
+    candidates: list[str] = []
+    stream_pattern = re.compile(rb"stream\s*(.*?)\s*endstream", re.DOTALL)
+    for stream_match in stream_pattern.finditer(raw_bytes):
+        stream_data = stream_match.group(1).strip()
+        if not stream_data:
+            continue
+        try:
+            decoded = zlib.decompress(stream_data)
+        except zlib.error:
+            decoded = stream_data
+        if decoded:
+            text = decoded.decode("latin-1", errors="ignore")
+            candidates.append(text)
+
+    literal_pattern = re.compile(rb"\((?:\\.|[^()\\])*\)")
+    for match in literal_pattern.finditer(raw_bytes):
+        literal = match.group(0)
+        try:
+            decoded = literal.decode("latin-1", errors="ignore")
+        except Exception:
+            continue
+        decoded = decoded.replace("\\(", "(").replace("\\)", ")").replace("\\n", " ")
+        decoded = decoded.replace("\\(", "(")
+        decoded = decoded.replace("\\)", ")")
+        decoded = decoded.replace("\\", "")
+        if decoded.strip() and decoded.strip() not in {"()", "( )"}:
+            candidates.append(decoded.strip("()"))
+
+    combined = "\n".join(part for part in candidates if part).strip()
+    return combined
 
 
 def extract_uploaded_text(filename: str | None, raw_bytes: bytes) -> str:
@@ -33,7 +69,12 @@ def extract_uploaded_text(filename: str | None, raw_bytes: bytes) -> str:
             if text:
                 return text
         except Exception as exc:  # pragma: no cover - surfaced to API caller as validation error
-            raise ValueError("Uploaded PDF could not be read or parsed.") from exc
+            pass
+
+        fallback = _extract_pdf_strings(raw_bytes).strip()
+        if fallback:
+            return fallback
+        raise ValueError("Uploaded PDF could not be read or parsed.")
 
     try:
         return raw_bytes.decode("utf-8").strip()
@@ -43,6 +84,18 @@ def extract_uploaded_text(filename: str | None, raw_bytes: bytes) -> str:
 
 def build_router(store: DocumentStore) -> APIRouter:
     router = APIRouter(prefix="/api")
+
+    @router.post("/auth/login")
+    def login(payload: LoginRequest) -> dict[str, str]:
+        if not authenticate_credentials(payload.username, payload.password):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid username or password.",
+            )
+        token = get_api_token()
+        if not token:
+            return {"token": ""}
+        return {"token": token}
 
     @router.post("/alarms", response_model=Alarm, status_code=201, dependencies=[Depends(require_write_token)])
     def ingest_alarm(payload: AlarmCreate) -> Alarm:

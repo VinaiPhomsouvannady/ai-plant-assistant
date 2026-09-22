@@ -20,6 +20,11 @@ class SearchRequest(BaseModel):
     limit: int = Field(default=5, ge=1, le=20)
 
 
+class LoginRequest(BaseModel):
+    username: str = Field(min_length=2, max_length=80)
+    password: str = Field(min_length=4, max_length=200)
+
+
 class TroubleshootRequest(BaseModel):
     equipment: str = Field(min_length=2, max_length=120)
     problem: str = Field(min_length=5)

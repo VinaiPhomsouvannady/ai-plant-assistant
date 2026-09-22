@@ -9,7 +9,12 @@ import {
   searchDocuments,
   Source,
   TroubleshootResponse,
+  uploadDocument,
 } from '../src/api';
+
+interface DashboardProps {
+  token?: string;
+}
 
 const severityStyles: Record<string, string> = {
   low: 'severity-low',
@@ -23,7 +28,7 @@ const statusCards = [
   { label: 'Avg response', value: '12 min', tone: 'neutral' },
 ];
 
-export default function Dashboard() {
+export default function Dashboard({ token = '' }: DashboardProps) {
   const [result, setResult] = useState<TroubleshootResponse | null>(null);
   const [issues, setIssues] = useState<RecurringIssue[]>([]);
   const [documents, setDocuments] = useState<DocumentRecord[]>([]);
@@ -73,7 +78,13 @@ export default function Dashboard() {
 
     try {
       if (uploadFile) {
-        await uploadDocument(uploadFile, documentTitle.trim() || uploadFile.name.replace(/\.[^.]+$/, ''), documentEquipment.trim(), documentSource.trim() || undefined);
+        await uploadDocument(
+          uploadFile,
+          documentTitle.trim() || uploadFile.name.replace(/\.[^.]+$/, ''),
+          documentEquipment.trim(),
+          documentSource.trim() || undefined,
+          token,
+        );
       } else if (!documentTitle.trim() || !documentEquipment.trim() || !documentContent.trim()) {
         setDocumentError('Please complete the title, equipment, and procedure content or choose a file to upload.');
         return;
@@ -83,7 +94,7 @@ export default function Dashboard() {
           equipment: documentEquipment.trim(),
           content: documentContent.trim(),
           source: documentSource.trim() || null,
-        });
+        }, token);
       }
 
       setDocumentTitle('');

@@ -70,6 +70,20 @@ def test_write_auth_is_optional_for_local_development() -> None:
     assert response.status_code == 201
 
 
+def test_auth_login_requires_valid_credentials_when_configured(monkeypatch) -> None:
+    monkeypatch.setenv("API_ACCESS_TOKEN", "secure-demo-token")
+    monkeypatch.setenv("AUTH_USERNAME", "plantops")
+    monkeypatch.setenv("AUTH_PASSWORD", "plantops123")
+
+    with TestClient(app) as client:
+        bad = client.post("/api/auth/login", json={"username": "plantops", "password": "wrong"})
+        good = client.post("/api/auth/login", json={"username": "plantops", "password": "plantops123"})
+
+    assert bad.status_code == 401
+    assert good.status_code == 200
+    assert good.json()["token"] == "secure-demo-token"
+
+
 def test_document_upload_accepts_text_file() -> None:
     with TestClient(app) as client:
         response = client.post(
