@@ -14,6 +14,7 @@ import {
 
 interface DashboardProps {
   token?: string;
+  onLogout?: () => void;
 }
 
 const severityStyles: Record<string, string> = {
@@ -28,7 +29,7 @@ const statusCards = [
   { label: 'Avg response', value: '12 min', tone: 'neutral' },
 ];
 
-export default function Dashboard({ token = '' }: DashboardProps) {
+export default function Dashboard({ token = '', onLogout }: DashboardProps) {
   const [result, setResult] = useState<TroubleshootResponse | null>(null);
   const [issues, setIssues] = useState<RecurringIssue[]>([]);
   const [documents, setDocuments] = useState<DocumentRecord[]>([]);
@@ -124,6 +125,7 @@ export default function Dashboard({ token = '' }: DashboardProps) {
         <div className="topbar-actions">
           <a href="/documents" className="nav-link">Documents</a>
           <div className="status-pill">Live monitoring</div>
+          {onLogout && <button type="button" className="nav-link" onClick={onLogout}>Sign out</button>}
         </div>
       </header>
 

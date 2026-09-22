@@ -19,7 +19,7 @@ function App() {
     return <Login onLoggedIn={setToken} />;
   }
 
-  return <Dashboard token={token} />;
+  return <Dashboard token={token} onLogout={() => setToken('')} />;
 }
 
 const root = document.getElementById('root');
