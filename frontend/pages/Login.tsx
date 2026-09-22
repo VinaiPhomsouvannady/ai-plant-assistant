@@ -1,7 +1,7 @@
 import { FormEvent, useState } from 'react';
 
 interface LoginProps {
-  onLoggedIn: (token: string) => void;
+  onLoggedIn: () => void;
 }
 
 export default function Login({ onLoggedIn }: LoginProps) {
@@ -27,8 +27,11 @@ export default function Login({ onLoggedIn }: LoginProps) {
         throw new Error(payload.detail || 'Login failed.');
       }
 
-      const payload = (await response.json()) as { token?: string };
-      onLoggedIn(payload.token || 'local-development');
+      const payload = (await response.json()) as { authenticated?: boolean };
+      if (!payload.authenticated) {
+        throw new Error('Login failed.');
+      }
+      onLoggedIn();
     } catch (loginError) {
       setError(loginError instanceof Error ? loginError.message : 'Login failed.');
     } finally {

@@ -5,21 +5,28 @@ import Login from '../pages/Login';
 import './styles.css';
 
 function App() {
-  const [token, setToken] = useState<string>(() => localStorage.getItem('plantops-token') || '');
+  const [authenticated, setAuthenticated] = useState<boolean | null>(null);
 
   useEffect(() => {
-    if (token) {
-      localStorage.setItem('plantops-token', token);
-    } else {
-      localStorage.removeItem('plantops-token');
-    }
-  }, [token]);
+    fetch('/api/auth/me', { credentials: 'include' })
+      .then((response) => setAuthenticated(response.ok))
+      .catch(() => setAuthenticated(false));
+  }, []);
 
-  if (!token) {
-    return <Login onLoggedIn={setToken} />;
+  if (authenticated === null) {
+    return <main className="login-shell" />;
   }
 
-  return <Dashboard token={token} onLogout={() => setToken('')} />;
+  if (!authenticated) {
+    return <Login onLoggedIn={() => setAuthenticated(true)} />;
+  }
+
+  async function handleLogout() {
+    await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+    setAuthenticated(false);
+  }
+
+  return <Dashboard onLogout={handleLogout} />;
 }
 
 const root = document.getElementById('root');

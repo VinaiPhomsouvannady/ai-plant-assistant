@@ -10,6 +10,11 @@ from fastapi.testclient import TestClient
 from backend.app import app
 
 
+def _login(client: TestClient) -> None:
+    response = client.post("/api/auth/login", json={"username": "plantops", "password": "plantops123"})
+    assert response.status_code == 200, response.text
+
+
 def test_runtime_env_keeps_container_database_url(monkeypatch, tmp_path) -> None:
     monkeypatch.chdir(tmp_path)
     (tmp_path / ".env").write_text("DATABASE_URL=postgresql+psycopg://plantops:plantops@localhost:5432/plantops\n")
@@ -47,6 +52,7 @@ def test_troubleshooting_returns_citations() -> None:
 def test_alarm_history_identifies_recurring_issues() -> None:
     timestamp = datetime.now(timezone.utc).isoformat()
     with TestClient(app) as client:
+        _login(client)
         response = client.post("/api/alarms/bulk", json=[
             {"equipment": "Compressor K-301", "alarm_code": "VIB_HIGH", "message": "High vibration", "occurred_at": timestamp},
             {"equipment": "Compressor K-301", "alarm_code": "VIB_HIGH", "message": "High vibration again", "occurred_at": timestamp},
@@ -58,34 +64,46 @@ def test_alarm_history_identifies_recurring_issues() -> None:
     assert recurring[0]["occurrences"] >= 2
 
 
-def test_write_auth_is_optional_for_local_development() -> None:
-    os.environ.pop("API_ACCESS_TOKEN", None)
+def test_write_auth_requires_login() -> None:
     with TestClient(app) as client:
-        response = client.post("/api/documents", json={
+        unauthorized = client.post("/api/documents", json={
             "title": "Local test procedure",
             "equipment": "Test valve",
             "content": "Use this procedure only for local API authentication testing.",
         })
+        _login(client)
+        response = client.post("/api/documents", json={
+            "title": "Authenticated test procedure",
+            "equipment": "Test valve",
+            "content": "Use this procedure only for local API authentication testing.",
+        })
 
+    assert unauthorized.status_code == 401
     assert response.status_code == 201
 
 
 def test_auth_login_requires_valid_credentials_when_configured(monkeypatch) -> None:
-    monkeypatch.setenv("API_ACCESS_TOKEN", "secure-demo-token")
     monkeypatch.setenv("AUTH_USERNAME", "plantops")
     monkeypatch.setenv("AUTH_PASSWORD", "plantops123")
 
     with TestClient(app) as client:
         bad = client.post("/api/auth/login", json={"username": "plantops", "password": "wrong"})
         good = client.post("/api/auth/login", json={"username": "plantops", "password": "plantops123"})
+        current = client.get("/api/auth/me")
+        logged_out = client.post("/api/auth/logout")
+        after_logout = client.get("/api/auth/me")
 
     assert bad.status_code == 401
     assert good.status_code == 200
-    assert good.json()["token"] == "secure-demo-token"
+    assert good.json()["authenticated"] is True
+    assert current.json()["username"] == "plantops"
+    assert logged_out.status_code == 200
+    assert after_logout.status_code == 401
 
 
 def test_document_upload_accepts_text_file() -> None:
     with TestClient(app) as client:
+        _login(client)
         response = client.post(
             "/api/documents/upload",
             files={"file": ("pump_procedure.txt", b"Verify suction pressure before startup. Inspect the strainer and confirm discharge flow is stable.", "text/plain")},
@@ -121,6 +139,7 @@ def test_document_upload_parses_pdf_text() -> None:
     pdf_bytes += f"trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n{xref_start}\n%%EOF\n".encode("ascii")
 
     with TestClient(app) as client:
+        _login(client)
         response = client.post(
             "/api/documents/upload",
             files={"file": ("pump_procedure.pdf", pdf_bytes, "application/pdf")},

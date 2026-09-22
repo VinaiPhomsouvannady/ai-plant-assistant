@@ -1,12 +1,13 @@
+import os
 import re
 import zlib
 from io import BytesIO
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile, status
 
 from backend.ai.embeddings import embed_texts
 from backend.ai.service import fallback_answer, generate_answer
-from backend.api.auth import authenticate_credentials, get_api_token, require_write_token
+from backend.api.auth import AUTH_COOKIE_NAME, AuthService, require_authenticated_user
 from backend.database.store import DocumentStore
 from backend.models import (
     Alarm,
@@ -84,24 +85,44 @@ def extract_uploaded_text(filename: str | None, raw_bytes: bytes) -> str:
 
 def build_router(store: DocumentStore) -> APIRouter:
     router = APIRouter(prefix="/api")
+    auth_service = AuthService(store.SessionLocal)
+    auth_service.bootstrap_user()
+
+    def require_write_access(user: dict = Depends(require_authenticated_user)) -> dict:
+        return user
 
     @router.post("/auth/login")
-    def login(payload: LoginRequest) -> dict[str, str]:
-        if not authenticate_credentials(payload.username, payload.password):
+    def login(payload: LoginRequest, response: Response) -> dict[str, bool]:
+        user = auth_service.authenticate(payload.username, payload.password)
+        if user is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid username or password.",
             )
-        token = get_api_token()
-        if not token:
-            return {"token": ""}
-        return {"token": token}
+        response.set_cookie(
+            key=AUTH_COOKIE_NAME,
+            value=auth_service.issue_token(user),
+            max_age=30 * 60,
+            httponly=True,
+            secure=os.getenv("AUTH_COOKIE_SECURE", "false").lower() == "true",
+            samesite="lax",
+        )
+        return {"authenticated": True}
 
-    @router.post("/alarms", response_model=Alarm, status_code=201, dependencies=[Depends(require_write_token)])
+    @router.post("/auth/logout")
+    def logout(response: Response) -> dict[str, bool]:
+        response.delete_cookie(AUTH_COOKIE_NAME)
+        return {"authenticated": False}
+
+    @router.get("/auth/me")
+    def current_user(user: dict = Depends(require_authenticated_user)) -> dict[str, str]:
+        return {"username": str(user.get("sub", "")), "role": str(user.get("role", "operator"))}
+
+    @router.post("/alarms", response_model=Alarm, status_code=201, dependencies=[Depends(require_write_access)])
     def ingest_alarm(payload: AlarmCreate) -> Alarm:
         return store.add_alarm(payload)
 
-    @router.post("/alarms/bulk", response_model=list[Alarm], status_code=201, dependencies=[Depends(require_write_token)])
+    @router.post("/alarms/bulk", response_model=list[Alarm], status_code=201, dependencies=[Depends(require_write_access)])
     def ingest_alarms(payload: list[AlarmCreate]) -> list[Alarm]:
         return [store.add_alarm(alarm) for alarm in payload]
 
@@ -113,12 +134,12 @@ def build_router(store: DocumentStore) -> APIRouter:
     def list_documents() -> list[Document]:
         return store.all()
 
-    @router.post("/documents", response_model=Document, status_code=201, dependencies=[Depends(require_write_token)])
+    @router.post("/documents", response_model=Document, status_code=201, dependencies=[Depends(require_write_access)])
     async def ingest_document(payload: DocumentCreate) -> Document:
         embeddings = await embed_texts(chunk_text(payload.content))
         return store.add(payload, embeddings or None)
 
-    @router.post("/documents/upload", response_model=Document, status_code=201, dependencies=[Depends(require_write_token)])
+    @router.post("/documents/upload", response_model=Document, status_code=201, dependencies=[Depends(require_write_access)])
     async def upload_document(
         file: UploadFile = File(...),
         title: str = Form(...),

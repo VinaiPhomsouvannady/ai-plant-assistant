@@ -35,7 +35,7 @@ export interface DocumentRecord {
 }
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(path, options);
+  const response = await fetch(path, { ...options, credentials: 'include' });
   if (!response.ok) {
     throw new Error(`Request failed (${response.status})`);
   }
@@ -85,6 +85,7 @@ export function uploadDocument(file: File, title: string, equipment: string, sou
 
   return fetch('/api/documents/upload', {
     method: 'POST',
+    credentials: 'include',
     headers: token ? { Authorization: `Bearer ${token}` } : undefined,
     body: formData,
   }).then(async (response) => {

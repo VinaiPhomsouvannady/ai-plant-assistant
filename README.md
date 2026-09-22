@@ -100,7 +100,10 @@ OPENAI_MODEL=gpt-4.1-mini
 EMBEDDING_MODEL=text-embedding-3-small
 CORS_ORIGINS=http://localhost:5173
 DATABASE_URL=postgresql+psycopg://plantops:plantops@db:5432/plantops
-API_ACCESS_TOKEN=
+AUTH_USERNAME=plantops
+AUTH_PASSWORD=change-this-password
+AUTH_SECRET_KEY=replace-with-a-long-random-secret
+AUTH_COOKIE_SECURE=true
 ```
 
 Notes:
@@ -209,8 +212,9 @@ Invoke-RestMethod -Uri 'http://127.0.0.1:8000/api/alarms/recurring' -Method Get
 
 ## Security and local development notes
 
-- Set `API_ACCESS_TOKEN` to protect write endpoints.
-- When the token is empty, write endpoints remain available for local development.
+- Authentication uses database-backed users, scrypt password hashes, and 30-minute signed sessions in `HttpOnly` cookies.
+- `AUTH_USERNAME` and `AUTH_PASSWORD` bootstrap the first admin user only; changing them does not overwrite an existing database user.
+- Set a unique `AUTH_SECRET_KEY` and enable `AUTH_COOKIE_SECURE=true` when serving over HTTPS.
 - Keep `.env` local and never commit secrets to source control.
 - The app can run in graceful fallback mode without a valid OpenAI key or without matching source documents.
 
@@ -244,14 +248,16 @@ Invoke-RestMethod -Uri 'http://127.0.0.1:8000/api/troubleshoot' -Method Post -Co
 Before using this in a real plant environment, confirm the following:
 
 - Use a secure environment-managed `OPENAI_API_KEY`
-- Restrict `API_ACCESS_TOKEN` to trusted client applications
+- Use a unique `AUTH_SECRET_KEY` managed by the deployment environment
+- Replace the bootstrap password after the first deployment
+- Serve the application over HTTPS with `AUTH_COOKIE_SECURE=true`
+- Add role-specific authorization rules for administrative operations
 - Run PostgreSQL in a managed or persistent environment instead of local Docker volumes for production
 - Set `CORS_ORIGINS` to the actual production frontend origin
 - Review document ingestion rules and access control for maintenance procedures
 - Validate alert ingestion and alarm retention policies for operational use
 - Monitor OpenAI quota, latency, and fallback behavior
 - Back up the pgvector-enabled PostgreSQL database and migration history
-- Add authentication and authorization around admin and write endpoints if used externally
 
 ## Testing
 
