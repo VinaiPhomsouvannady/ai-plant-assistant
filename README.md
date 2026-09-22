@@ -1,277 +1,227 @@
-# AI Plant Operations Assistant
+# PlantOps AI
 
-An AI-assisted plant troubleshooting platform for industrial operations teams. The application helps maintainers find relevant equipment procedures, review alarm history, and get source-grounded recommendations for recurring plant issues.
+PlantOps AI is an AI-assisted troubleshooting workspace for industrial operations teams. It combines plant documents, equipment alarms, semantic retrieval, and optional LLM recommendations so operators can investigate equipment issues with source-backed guidance.
 
-## Problem
+## Features
 
-Plant teams often deal with alarm bursts, incomplete operating records, and fragmented maintenance procedures spread across PDFs, tags, and handwritten instructions. This slows troubleshooting and increases the risk of unsafe or inconsistent decisions.
+- Authenticated operator dashboard
+- Database-backed users with scrypt password hashes
+- Signed 30-minute sessions in `HttpOnly` cookies
+- Equipment troubleshooting with cited source documents
+- Document creation, text/Markdown/PDF upload, full-document viewing, and deletion
+- Alarm ingestion, alarm history, filtering, and recurring-issue summaries
+- Units overview derived from equipment in documents and alarms
+- PostgreSQL persistence with pgvector embeddings
+- Safe fallback recommendations when OpenAI is not configured
 
-## Solution
+## Stack
 
-This application helps operators and maintenance teams:
-
-- search plant documentation for the right procedure quickly,
-- compare the issue with recent alarm history,
-- retrieve the most relevant procedure and source material,
-- generate a safe troubleshooting recommendation grounded in that context.
-
-## Why it matters
-
-The result is faster diagnosis, less downtime, safer plant operations, and a more consistent maintenance workflow across shift teams.
-
-## What the application is about
-
-The assistant is built for environments where operators need quick, reliable guidance during abnormal equipment conditions. It combines:
-
-- plant procedure documents
-- equipment alarm history
-- semantic search over technical content
-- optional LLM-powered troubleshooting recommendations
-- recurring issue detection for repeated alarms
-
-This gives plant staff a faster way to answer questions like:
-
-- Why is this pump showing low discharge pressure?
-- What procedure should I follow for this compressor alarm?
-- Has this equipment issue happened before and how often?
-
-## Product capabilities
-
-- Search plant documents by equipment and free-text query
-- Retrieve relevant maintenance procedures with pgvector similarity search
-- Generate a troubleshooting answer grounded in the retrieved procedure context
-- Fall back to a safe operational recommendation if no LLM key or matching document is available
-- Persist alarms in PostgreSQL and identify recurring alarm patterns
-- Provide source-linked answers with next-check guidance
-
-## Tech stack
-
-- Python
-- FastAPI
-- PostgreSQL + pgvector
-- SQLAlchemy
-- Alembic
-- OpenAI API (optional)
+- FastAPI and Uvicorn
+- React, TypeScript, and Vite
+- PostgreSQL 16 with pgvector
+- SQLAlchemy and Alembic
+- Optional OpenAI embeddings and chat completion
 - Docker Compose
 
-## Architecture overview
+## Start With Docker
 
-```mermaid
-flowchart LR
-    A[Operator / Maintenance User] --> B[FastAPI App]
-    B --> C[Document Search + RAG Retrieval]
-    B --> D[Alarm History Query]
-    C --> E[PostgreSQL + pgvector]
-    D --> E
-    B --> F[Optional OpenAI LLM]
-    F --> G[Source-grounded Troubleshooting Answer]
-    C --> G
-    D --> G
-```
+Docker is the recommended local workflow because it starts PostgreSQL, applies migrations, builds the frontend, and serves the built UI from FastAPI.
 
-## Repository structure
-
-- `backend/` – API, DB access, AI generation, retrieval logic
-- `alembic/` – schema migration files
-- `frontend/` – served UI shell
-- `tests/` – project tests
-- `docker-compose.yml` – Postgres and app containers
-- `Dockerfile` – API container build
-- `.env.example` – environment variable template
-- `README.md` – project documentation
-
-## Deployment
-
-The recommended deployment flow is Docker Compose.
-
-### 1. Create environment file
-
-Copy the example file:
+### 1. Configure the environment
 
 ```powershell
 Copy-Item .env.example .env
 ```
 
-Example contents:
+For local development, `.env` can use:
 
 ```env
 OPENAI_API_KEY=
 OPENAI_MODEL=gpt-4.1-mini
 EMBEDDING_MODEL=text-embedding-3-small
 CORS_ORIGINS=http://localhost:5173
-DATABASE_URL=postgresql+psycopg://plantops:plantops@db:5432/plantops
 AUTH_USERNAME=plantops
 AUTH_PASSWORD=change-this-password
 AUTH_SECRET_KEY=replace-with-a-long-random-secret
-AUTH_COOKIE_SECURE=true
+AUTH_COOKIE_SECURE=false
 ```
 
-Notes:
+Use a unique password and secret outside a local demo. Keep `.env` private.
 
-- `OPENAI_API_KEY` is optional. The app can still operate in fallback mode without it.
-- In Docker, use `db` as the database host.
-- For local non-Docker Python runs, use `localhost` instead of `db`.
-
-### 2. Start the stack
+### 2. Start the application
 
 ```powershell
 docker compose up -d --build
 ```
 
-This starts:
+Open:
 
-- PostgreSQL with pgvector
-- the FastAPI application
-- the Alembic migration during startup
+- Dashboard: http://localhost:8000/
+- Units: http://localhost:8000/units
+- Alarms: http://localhost:8000/alarms
+- Documents: http://localhost:8000/documents
+- API documentation: http://localhost:8000/docs
+- Health check: http://localhost:8000/health
 
-### 3. Verify it is running
+The first configured user is created as an admin during application startup. Sign in with the `AUTH_USERNAME` and `AUTH_PASSWORD` values from `.env`.
+
+### 3. Check the services
 
 ```powershell
 docker compose ps
-Invoke-RestMethod -Uri 'http://127.0.0.1:8000/health' | ConvertTo-Json -Depth 10
+Invoke-RestMethod -Uri 'http://localhost:8000/health' | ConvertTo-Json
 ```
 
-Expected result:
+Stop the stack with:
 
-```json
-{
-  "status": "ok",
-  "documents": 3,
-  "chunks": 3,
-  "alarms": 0
-}
+```powershell
+docker compose down
 ```
 
-## Local Python run
+Add `--volumes` only when you intentionally want to delete the PostgreSQL data volume.
 
-If you want to run the app directly in the local Python environment:
+## Frontend Development
+
+The Vite project uses `frontend/vite.html` as its entry file. There is intentionally no `frontend/index.html`.
+
+Run the frontend build:
+
+```powershell
+npm install
+npm run build
+```
+
+The build writes `frontend/dist/vite.html` and its assets. FastAPI serves that built shell when running on port `8000`.
+
+For the complete working application, use Docker. Running Vite alone on port `5173` is useful for frontend-only work, but this project does not currently configure a Vite proxy for the backend API.
+
+## Local Python Run
+
+Use this when PostgreSQL is already available and `DATABASE_URL` points to it.
 
 ```powershell
 .\.venv\Scripts\Activate.ps1
-python -m uvicorn backend.app:app --host 127.0.0.1 --port 8000 --reload
+npm install
+npm run build
+python -m alembic upgrade head
+python -m uvicorn app:app --host 127.0.0.1 --port 8000 --reload
 ```
 
-Open:
+If the browser shows an error about `frontend\index.html`, an old process or stale source is running. This project serves `frontend\dist\vite.html`; stop the old server, build the frontend, and start `app:app` from the repository root.
 
-- `http://127.0.0.1:8000/`
-- `http://127.0.0.1:8000/docs`
+## Application Workflow
 
-## Database and migrations
+1. Sign in at the dashboard.
+2. Ask a troubleshooting question for a unit and problem.
+3. Review the recommendation, severity, next checks, and cited sources.
+4. Open **Documents** to add manual content or upload a `.txt`, `.md`, or `.pdf` file.
+5. Click a document to read its full content, or delete it when appropriate.
+6. Open **Alarms** to filter alarm history.
+7. Open **Units** to review equipment represented by the document and alarm data.
 
-The schema is managed with Alembic.
+## API Overview
 
-Run migrations:
+Public/read endpoints:
+
+```text
+GET  /health
+GET  /api/auth/me
+GET  /api/documents
+GET  /api/alarms
+GET  /api/alarms/recurring
+POST /api/search
+POST /api/troubleshoot
+```
+
+Authentication endpoints:
+
+```text
+POST /api/auth/login
+POST /api/auth/logout
+```
+
+Authenticated write endpoints:
+
+```text
+POST   /api/documents
+POST   /api/documents/upload
+DELETE /api/documents/{document_id}
+POST   /api/alarms
+POST   /api/alarms/bulk
+```
+
+The browser uses the secure session cookie automatically. API clients must preserve cookies between login and subsequent requests.
+
+## Database and Migrations
+
+Migrations run automatically when the Docker API container starts. To run them manually:
 
 ```powershell
 .\.venv\Scripts\python.exe -m alembic upgrade head
 ```
 
-Check migrations in Postgres:
+Current tables include:
 
-```powershell
-docker compose exec db psql -U plantops -d plantops -c "SELECT version_num FROM alembic_version;"
-```
-
-The database includes:
-
+- `users`
 - `documents`
 - `document_chunks`
 - `equipment_alarms`
 - `alembic_version`
 
-with the `vector` extension enabled.
-
-## API examples
-
-### Search documents
-
-```powershell
-$body = '{"equipment":"Centrifugal pump","query":"low discharge pressure","limit":3}'
-Invoke-RestMethod -Uri 'http://127.0.0.1:8000/api/search' -Method Post -ContentType 'application/json' -Body $body
-```
-
-### Troubleshoot equipment
-
-```powershell
-$body = '{"equipment":"Centrifugal pump","problem":"low discharge pressure","limit":3}'
-Invoke-RestMethod -Uri 'http://127.0.0.1:8000/api/troubleshoot' -Method Post -ContentType 'application/json' -Body $body
-```
-
-### Ingest an alarm
-
-```powershell
-$body = '{"equipment":"Centrifugal pump","alarm_code":"P-204-01","message":"Discharge pressure low","occurred_at":"2026-09-21T10:00:00Z","value":1.2,"unit":"bar"}'
-Invoke-RestMethod -Uri 'http://127.0.0.1:8000/api/alarms' -Method Post -ContentType 'application/json' -Body $body
-```
-
-### View recurring issues
-
-```powershell
-Invoke-RestMethod -Uri 'http://127.0.0.1:8000/api/alarms/recurring' -Method Get
-```
-
-## Security and local development notes
-
-- Authentication uses database-backed users, scrypt password hashes, and 30-minute signed sessions in `HttpOnly` cookies.
-- `AUTH_USERNAME` and `AUTH_PASSWORD` bootstrap the first admin user only; changing them does not overwrite an existing database user.
-- Set a unique `AUTH_SECRET_KEY` and enable `AUTH_COOKIE_SECURE=true` when serving over HTTPS.
-- Keep `.env` local and never commit secrets to source control.
-- The app can run in graceful fallback mode without a valid OpenAI key or without matching source documents.
-
-## Quick-start demo flow
-
-For a fast live demo, use this flow:
-
-1. Start the stack:
-
-```powershell
-docker compose up -d --build
-```
-
-2. Confirm the health endpoint is live:
-
-```powershell
-Invoke-RestMethod -Uri 'http://127.0.0.1:8000/health'
-```
-
-3. Run a sample troubleshooting query:
-
-```powershell
-$body = '{"equipment":"Centrifugal pump","problem":"low discharge pressure","limit":3}'
-Invoke-RestMethod -Uri 'http://127.0.0.1:8000/api/troubleshoot' -Method Post -ContentType 'application/json' -Body $body
-```
-
-4. If you have an OpenAI key, the response will be generated from procedure context; otherwise the app falls back to a safe operational recommendation.
-
-## Production deployment checklist
-
-Before using this in a real plant environment, confirm the following:
-
-- Use a secure environment-managed `OPENAI_API_KEY`
-- Use a unique `AUTH_SECRET_KEY` managed by the deployment environment
-- Replace the bootstrap password after the first deployment
-- Serve the application over HTTPS with `AUTH_COOKIE_SECURE=true`
-- Add role-specific authorization rules for administrative operations
-- Run PostgreSQL in a managed or persistent environment instead of local Docker volumes for production
-- Set `CORS_ORIGINS` to the actual production frontend origin
-- Review document ingestion rules and access control for maintenance procedures
-- Validate alert ingestion and alarm retention policies for operational use
-- Monitor OpenAI quota, latency, and fallback behavior
-- Back up the pgvector-enabled PostgreSQL database and migration history
+The database also enables the `vector` extension for document embeddings.
 
 ## Testing
+
+Backend tests:
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
-## Typical operational use case
+Frontend type checking and build:
 
-An operator sees an alarm on a pump or compressor and asks the assistant for guidance. The app:
+```powershell
+npm run typecheck
+npm run build
+```
 
-1. searches the procedure library for the equipment,
-2. retrieves relevant background documents,
-3. checks recent alarm history,
-4. generates a troubleshooting recommendation with source citations.
+## Security Notes
 
-This makes the plant troubleshooting workflow faster, more consistent, and better grounded in operational documentation.
+- Passwords are stored as scrypt hashes, not plaintext.
+- Sessions expire after 30 minutes and use `HttpOnly` cookies.
+- Set `AUTH_SECRET_KEY` to a long, random, deployment-managed value.
+- Set `AUTH_COOKIE_SECURE=true` when serving over HTTPS.
+- Replace the bootstrap password after the first deployment.
+- Keep `.env` out of source control.
+- Configure `CORS_ORIGINS` to the real frontend origin in deployment.
+- Put the application behind HTTPS, rate limiting, and a managed PostgreSQL instance before external use.
+- Review document access and role-specific authorization before using plant procedures in a shared environment.
+
+## Troubleshooting
+
+### The dashboard returns a missing `frontend\index.html` error
+
+This usually means an old local server is running or the Vite build has not been created. The current entry is `frontend/vite.html`, not `frontend/index.html`.
+
+Run:
+
+```powershell
+npm run build
+docker compose up -d --build
+```
+
+Then open http://localhost:8000/.
+
+### Login is rejected
+
+Check the values in `.env`, restart the API, and use the same username and password:
+
+```powershell
+docker compose up -d --build
+```
+
+If the database already contains the user, changing `AUTH_USERNAME` or `AUTH_PASSWORD` does not overwrite that user. Update the user through an administrative workflow before changing bootstrap settings.
+
+### The app starts but has no AI-generated response
+
+Set `OPENAI_API_KEY` in `.env` and rebuild/restart. Without a key, the application uses its deterministic fallback recommendation.
