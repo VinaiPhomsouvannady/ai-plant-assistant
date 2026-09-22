@@ -64,6 +64,22 @@ def test_alarm_history_identifies_recurring_issues() -> None:
     assert recurring[0]["occurrences"] >= 2
 
 
+def test_alarm_list_returns_recent_alarms() -> None:
+    timestamp = datetime.now(timezone.utc).isoformat()
+    with TestClient(app) as client:
+        _login(client)
+        created = client.post("/api/alarms", json={
+            "equipment": "Compressor K-302",
+            "alarm_code": "TEMP_HIGH",
+            "message": "Discharge temperature high",
+            "occurred_at": timestamp,
+        })
+        alarms = client.get("/api/alarms").json()
+
+    assert created.status_code == 201
+    assert any(alarm["alarm_code"] == "TEMP_HIGH" for alarm in alarms)
+
+
 def test_write_auth_requires_login() -> None:
     with TestClient(app) as client:
         unauthorized = client.post("/api/documents", json={

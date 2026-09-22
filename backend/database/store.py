@@ -54,6 +54,9 @@ class DocumentStore:
             ))
         return sorted(summaries, key=lambda item: item.occurrences, reverse=True)[:limit]
 
+    def all_alarms(self, limit: int = 100) -> list[Alarm]:
+        return sorted(self.alarms.values(), key=lambda item: item.occurred_at, reverse=True)[:limit]
+
     def recent_alarms(self, equipment: str, limit: int = 10) -> list[Alarm]:
         matching = [
             alarm for alarm in self.alarms.values()

@@ -47,6 +47,8 @@ if (frontend_dist / "assets").exists():
 
 
 @app.get("/", include_in_schema=False)
+@app.get("/alarms", include_in_schema=False)
+@app.get("/units", include_in_schema=False)
 def frontend() -> FileResponse:
     built_index = frontend_dist / "vite.html"
     if built_index.exists():

@@ -130,6 +130,10 @@ def build_router(store: DocumentStore) -> APIRouter:
     def recurring_alarms(limit: int = 20) -> list[RecurringIssue]:
         return store.recurring_issues(limit=max(1, min(limit, 100)))
 
+    @router.get("/alarms", response_model=list[Alarm])
+    def list_alarms(limit: int = 100) -> list[Alarm]:
+        return store.all_alarms(limit=max(1, min(limit, 200)))
+
     @router.get("/documents", response_model=list[Document])
     def list_documents() -> list[Document]:
         return store.all()

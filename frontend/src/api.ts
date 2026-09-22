@@ -25,6 +25,16 @@ export interface RecurringIssue {
   latest_message: string;
 }
 
+export interface AlarmRecord {
+  id: string;
+  equipment: string;
+  alarm_code: string;
+  message: string;
+  occurred_at: string;
+  value: number | null;
+  unit: string | null;
+}
+
 export interface DocumentRecord {
   id: string;
   title: string;
@@ -52,6 +62,10 @@ export function troubleshoot(equipment: string, problem: string): Promise<Troubl
 
 export function recurringIssues(): Promise<RecurringIssue[]> {
   return request<RecurringIssue[]>('/api/alarms/recurring');
+}
+
+export function listAlarms(): Promise<AlarmRecord[]> {
+  return request<AlarmRecord[]>('/api/alarms');
 }
 
 export function listDocuments(): Promise<DocumentRecord[]> {

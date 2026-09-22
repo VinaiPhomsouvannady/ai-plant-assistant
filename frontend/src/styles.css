@@ -99,6 +99,36 @@ button, input, textarea, select {
   border-radius: 999px;
 }
 
+.page-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: end;
+  gap: 20px;
+  margin-bottom: 22px;
+}
+
+.page-heading h2 { margin-bottom: 0; font-size: 2rem; }
+.compact-input { max-width: 280px; }
+.table-panel { padding: 4px; overflow: hidden; background: var(--panel); border: 1px solid var(--panel-border); border-radius: 18px; box-shadow: var(--shadow); }
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; min-width: 720px; }
+th, td { padding: 16px 18px; text-align: left; border-bottom: 1px solid rgba(131, 179, 173, 0.12); }
+th { color: var(--muted); font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; }
+td { color: var(--text); }
+tbody tr:last-child td { border-bottom: 0; }
+.alarm-code { display: inline-block; padding: 5px 8px; border-radius: 6px; background: rgba(255, 180, 84, 0.14); color: var(--warning); font-size: 0.8rem; font-weight: 700; }
+.unit-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 18px; }
+.unit-card { padding: 20px; background: linear-gradient(180deg, rgba(13, 31, 35, 0.95), rgba(9, 18, 21, 0.9)); border: 1px solid var(--panel-border); border-radius: 18px; box-shadow: var(--shadow); }
+.unit-card-header, .unit-metrics { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.unit-card-header { margin-bottom: 24px; }
+.unit-status { display: inline-block; width: 10px; height: 10px; margin-right: 8px; border-radius: 50%; background: var(--primary-strong); box-shadow: 0 0 14px rgba(87, 200, 122, 0.8); }
+.alarm-count { color: var(--muted); font-size: 0.8rem; }
+.alarm-count.active { color: var(--warning); }
+.unit-metrics { align-items: start; padding-top: 16px; border-top: 1px solid rgba(131, 179, 173, 0.14); color: var(--muted); font-size: 0.82rem; }
+.unit-metrics span { display: grid; gap: 6px; }
+.unit-metrics b { color: var(--text); font-size: 1.1rem; }
+.unit-message { margin: 18px 0 0; color: var(--muted); line-height: 1.5; }
+
 .brand-lockup {
   display: flex;
   align-items: center;

@@ -123,6 +123,8 @@ export default function Dashboard({ token = '', onLogout }: DashboardProps) {
           </div>
         </div>
         <div className="topbar-actions">
+          <a href="/units" className="nav-link">Units</a>
+          <a href="/alarms" className="nav-link">Alarms</a>
           <a href="/documents" className="nav-link">Documents</a>
           <div className="status-pill">Live monitoring</div>
           {onLogout && <button type="button" className="nav-link" onClick={onLogout}>Sign out</button>}

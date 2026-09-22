@@ -2,6 +2,8 @@ import { StrictMode, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import Dashboard from '../pages/Dashboard';
 import Login from '../pages/Login';
+import Alarms from '../pages/Alarms';
+import Units from '../pages/Units';
 import './styles.css';
 
 function App() {
@@ -26,6 +28,9 @@ function App() {
     setAuthenticated(false);
   }
 
+  const page = window.location.pathname;
+  if (page === '/alarms') return <Alarms onLogout={handleLogout} />;
+  if (page === '/units') return <Units onLogout={handleLogout} />;
   return <Dashboard onLogout={handleLogout} />;
 }
 
