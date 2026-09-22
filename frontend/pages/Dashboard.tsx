@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import QuestionForm from '../components/QuestionForm';
 import {
+  createDocument,
   DocumentRecord,
   listDocuments,
   recurringIssues,
@@ -28,11 +29,29 @@ export default function Dashboard() {
   const [documents, setDocuments] = useState<DocumentRecord[]>([]);
   const [searchQuery, setSearchQuery] = useState('low discharge pressure');
   const [searchResults, setSearchResults] = useState<Source[]>([]);
+  const [documentTitle, setDocumentTitle] = useState('Pump startup checklist');
+  const [documentEquipment, setDocumentEquipment] = useState('Centrifugal pump');
+  const [documentSource, setDocumentSource] = useState('Operations manual');
+  const [documentContent, setDocumentContent] = useState(
+    'Check suction pressure, verify discharge flow, and inspect the strainer before escalating the issue.'
+  );
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [documentError, setDocumentError] = useState('');
+  const [documentLoading, setDocumentLoading] = useState(false);
 
   useEffect(() => {
     recurringIssues().then(setIssues).catch(() => setIssues([]));
     listDocuments().then(setDocuments).catch(() => setDocuments([]));
   }, []);
+
+  async function refreshDocuments() {
+    try {
+      const nextDocuments = await listDocuments();
+      setDocuments(nextDocuments);
+    } catch {
+      setDocuments([]);
+    }
+  }
 
   async function handleKnowledgeSearch() {
     if (!searchQuery.trim()) {
@@ -40,19 +59,56 @@ export default function Dashboard() {
     }
 
     try {
-      const results = await searchDocuments(searchQuery, 'Centrifugal pump', 3);
+      const results = await searchDocuments(searchQuery, documentEquipment || undefined, 3);
       setSearchResults(results);
     } catch {
       setSearchResults([]);
     }
   }
 
+  async function handleDocumentSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setDocumentLoading(true);
+    setDocumentError('');
+
+    try {
+      if (uploadFile) {
+        await uploadDocument(uploadFile, documentTitle.trim() || uploadFile.name.replace(/\.[^.]+$/, ''), documentEquipment.trim(), documentSource.trim() || undefined);
+      } else if (!documentTitle.trim() || !documentEquipment.trim() || !documentContent.trim()) {
+        setDocumentError('Please complete the title, equipment, and procedure content or choose a file to upload.');
+        return;
+      } else {
+        await createDocument({
+          title: documentTitle.trim(),
+          equipment: documentEquipment.trim(),
+          content: documentContent.trim(),
+          source: documentSource.trim() || null,
+        });
+      }
+
+      setDocumentTitle('');
+      setDocumentSource('');
+      setDocumentContent('');
+      setUploadFile(null);
+      await refreshDocuments();
+    } catch (error) {
+      setDocumentError(error instanceof Error ? error.message : 'Unable to save this document.');
+    } finally {
+      setDocumentLoading(false);
+    }
+  }
+
   return (
     <main className="dashboard-shell">
       <header className="topbar">
-        <div>
-          <p className="eyebrow">Plant Operations Console</p>
-          <h1>PlantOps AI</h1>
+        <div className="brand-lockup">
+          <span className="brand-mark">+</span>
+          <div>
+            <p className="eyebrow">Plant Operations Console</p>
+            <h1>
+              PlantOps <b>AI</b>
+            </h1>
+          </div>
         </div>
         <div className="status-pill">Live monitoring</div>
       </header>
@@ -133,6 +189,77 @@ export default function Dashboard() {
             )}
           </div>
         </div>
+      </section>
+
+      <section className="panel panel-secondary document-panel">
+        <div className="panel-header">
+          <span className="dot" />
+          <h2>Document handling</h2>
+        </div>
+
+        <form className="document-form" onSubmit={handleDocumentSubmit}>
+          <div className="field-grid">
+            <div className="field-group">
+              <label htmlFor="document-title">Procedure title</label>
+              <input
+                id="document-title"
+                value={documentTitle}
+                onChange={(event) => setDocumentTitle(event.target.value)}
+                placeholder="Pump startup checklist"
+              />
+            </div>
+
+            <div className="field-group">
+              <label htmlFor="document-equipment">Equipment</label>
+              <input
+                id="document-equipment"
+                value={documentEquipment}
+                onChange={(event) => setDocumentEquipment(event.target.value)}
+                placeholder="Centrifugal pump"
+              />
+            </div>
+
+            <div className="field-group full-width">
+              <label htmlFor="document-source">Source</label>
+              <input
+                id="document-source"
+                value={documentSource}
+                onChange={(event) => setDocumentSource(event.target.value)}
+                placeholder="Operations manual / SOP / vendor bulletin"
+              />
+            </div>
+
+            <div className="field-group full-width">
+              <label htmlFor="document-content">Procedure content</label>
+              <textarea
+                id="document-content"
+                value={documentContent}
+                onChange={(event) => setDocumentContent(event.target.value)}
+                rows={6}
+                placeholder="Paste or type the plant procedure steps here..."
+              />
+            </div>
+          </div>
+
+          <div className="upload-row">
+            <label className="upload-box">
+              <input
+                type="file"
+                accept=".txt,.md,.pdf"
+                onChange={(event) => setUploadFile(event.target.files?.[0] ?? null)}
+              />
+              <span>{uploadFile ? uploadFile.name : 'Upload procedure file'}</span>
+            </label>
+          </div>
+
+          <div className="form-actions align-left">
+            <button type="submit" disabled={documentLoading}>
+              {documentLoading ? 'Saving document...' : 'Add document'}
+            </button>
+          </div>
+
+          {documentError && <p className="error-banner">{documentError}</p>}
+        </form>
       </section>
 
       {result && (

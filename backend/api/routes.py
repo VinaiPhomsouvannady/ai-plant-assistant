@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, File, Form, UploadFile
 
 from backend.ai.embeddings import embed_texts
 from backend.ai.service import fallback_answer, generate_answer
@@ -40,6 +40,21 @@ def build_router(store: DocumentStore) -> APIRouter:
 
     @router.post("/documents", response_model=Document, status_code=201, dependencies=[Depends(require_write_token)])
     async def ingest_document(payload: DocumentCreate) -> Document:
+        embeddings = await embed_texts(chunk_text(payload.content))
+        return store.add(payload, embeddings or None)
+
+    @router.post("/documents/upload", response_model=Document, status_code=201, dependencies=[Depends(require_write_token)])
+    async def upload_document(
+        file: UploadFile = File(...),
+        title: str = Form(...),
+        equipment: str = Form(...),
+        source: str | None = Form(default=None),
+    ) -> Document:
+        content = await file.read()
+        text = content.decode("utf-8", errors="ignore").strip()
+        if not text:
+            raise ValueError("Uploaded file is empty or not readable as text.")
+        payload = DocumentCreate(title=title, equipment=equipment, content=text, source=source)
         embeddings = await embed_texts(chunk_text(payload.content))
         return store.add(payload, embeddings or None)
 

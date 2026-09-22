@@ -67,3 +67,18 @@ def test_write_auth_is_optional_for_local_development() -> None:
         })
 
     assert response.status_code == 201
+
+
+def test_document_upload_accepts_text_file() -> None:
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/documents/upload",
+            files={"file": ("pump_procedure.txt", b"Verify suction pressure before startup. Inspect the strainer and confirm discharge flow is stable.", "text/plain")},
+            data={"title": "Uploaded pump procedure", "equipment": "Centrifugal pump", "source": "Uploaded SOP"},
+        )
+
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["title"] == "Uploaded pump procedure"
+    assert payload["equipment"] == "Centrifugal pump"
+    assert "suction pressure" in payload["content"].lower()

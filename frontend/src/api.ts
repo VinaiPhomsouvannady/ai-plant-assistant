@@ -58,6 +58,40 @@ export function listDocuments(): Promise<DocumentRecord[]> {
   return request<DocumentRecord[]>('/api/documents');
 }
 
+export function createDocument(payload: {
+  title: string;
+  equipment: string;
+  content: string;
+  source?: string | null;
+}): Promise<DocumentRecord> {
+  return request<DocumentRecord>('/api/documents', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function uploadDocument(file: File, title: string, equipment: string, source?: string): Promise<DocumentRecord> {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('title', title);
+  formData.append('equipment', equipment);
+  if (source) {
+    formData.append('source', source);
+  }
+
+  return fetch('/api/documents/upload', {
+    method: 'POST',
+    body: formData,
+  }).then(async (response) => {
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(errorText || 'Upload failed');
+    }
+    return response.json() as Promise<DocumentRecord>;
+  });
+}
+
 export function searchDocuments(query: string, equipment?: string, limit = 3): Promise<Source[]> {
   return request<Source[]>('/api/search', {
     method: 'POST',
